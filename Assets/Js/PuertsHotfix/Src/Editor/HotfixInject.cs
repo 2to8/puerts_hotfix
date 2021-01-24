@@ -179,7 +179,7 @@ namespace Puerts
         }
         #endregion
 
-        #region Generate
+        #region Generate Code
         private static void GenerateHotfixCode(string codeDir)
         {
             var path = Path.Combine(codeDir, "hotfix_map.js.txt");
@@ -193,10 +193,7 @@ namespace Puerts
         public static string GenerateHotfixCode()
         {
             var sb = new System.Text.StringBuilder();
-            sb.AppendLine("(function () {");
-            sb.AppendLine("\"use strict\";");
-            sb.AppendLine("var hotfix_map = {");
-
+            sb.AppendLine("module.exports = {");
             foreach (var classItem in allInjectMethods)
             {
                 sb.AppendLine(string.Format("    \"{0}\": ", classItem.Key) + "{");
@@ -213,8 +210,6 @@ namespace Puerts
                 sb.AppendLine("    },");
             }
             sb.AppendLine("}");
-            sb.AppendLine("return hotfix_map;");
-            sb.AppendLine("}());");
             return sb.ToString();
         }
         #endregion

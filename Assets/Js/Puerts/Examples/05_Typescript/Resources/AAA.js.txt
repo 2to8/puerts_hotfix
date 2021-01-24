@@ -1,3 +1,0 @@
-class AAA {
-}
-//# sourceMappingURL=AAA.js.map

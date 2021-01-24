@@ -1,7 +1,7 @@
 ﻿namespace Puerts
 {
     public delegate bool HotfixHasPatch(string className, string methodName, int methodId);
-    public delegate object HotfixCallPatch(string className, string methodName, int methodId, object obj, params object[] args);
+    public delegate object HotfixCallPatch(string className, string methodName, int methodId, object[] args);
     public class Hotfix
     {
         public static HotfixHasPatch jsHasPatch;
@@ -13,6 +13,8 @@
             if (isInit) return;
             isInit = true;
             jsEnv = env;
+            jsEnv.UsingFunc<string, string, int, bool>();
+            jsEnv.UsingFunc<string, string, int, object[], object>();
             jsEnv.Eval(@"require('hotfix')");
         }
         public static bool HasPatch(string className, string methodName, int methodId)
@@ -23,7 +25,11 @@
         public static object CallPatch(string className, string methodName, int methodId, object obj, params object[] args)
         {
             if (jsCallPatch == null) return null;
-            return jsCallPatch.Invoke(className, methodName, methodId, obj, args);
+            if(args.Length > 0)
+            {
+                UnityEngine.Debug.Log(args[0]);
+            }
+            return jsCallPatch.Invoke(className, methodName, methodId, new object[] { obj, args });
         }
     }
 }

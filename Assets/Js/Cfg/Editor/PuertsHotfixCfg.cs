@@ -33,6 +33,6 @@ public class PuertsHotfixCfg
     static bool Filter(System.Reflection.MethodInfo methodInfo)
     {
         return methodInfo.DeclaringType.FullName == "PuertsTest.JsHotfixTest"
-            && (methodInfo.Name == "NoHotfixTest");
+            && ( (methodInfo.Name == "NoHotfixTest") || (methodInfo.Name == "Awake") );
     }
 }

@@ -28,6 +28,13 @@ namespace Puerts
         [MenuItem("Puerts/Inject Clear (Script Compilation)")]
         public static void InjectClear()
         {
+            var codeDir = GetHotfixCodeDirectory();
+            var path = Path.Combine(codeDir, "hotfix_map.js.txt");
+            if (File.Exists(path))
+            {
+                try { File.Delete(path); }
+                catch (Exception e) { UnityEngine.Debug.LogError(e); }
+            }
             UnityEditorUtility.Compilation(); // 重新编译脚本
         }
         /// <summary> 对 Assembly-CSharp 注入 </summary>

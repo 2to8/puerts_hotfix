@@ -1,0 +1,17 @@
+﻿module.exports = {
+    "PuertsTest.JsHotfixTest": {
+        "Start": [
+            "", // 0
+        ],
+        "HotfixTest": [
+            "", // 0
+            "System.Int32 hotfixTest", // 1
+        ],
+        "HotfixTest1": [
+            "", // 0
+        ],
+        "OnDestroy": [
+            "", // 0
+        ],
+    },
+}
