@@ -4,7 +4,6 @@ var global = global || (function () { return this; }());
     var hotfix = {};
     var patchList = {};
     const patchKey = 'patch';
-    try { hotfix.map = require('hotfix_map'); } catch { console.error("not found hotfix_map"); }
     const CS = require('csharp');
     const puerts = require('puerts');
     const CSHotfix = CS.Puerts.Hotfix;
@@ -30,36 +29,23 @@ var global = global || (function () { return this; }());
         if (fun != null) {
             if (args != null) {
                 let length = args.Length;
-                if (length > 1) {
-                    let self = args.GetValue(0);
-                    let arg = args.GetValue(1);
-                    let argLength = arg == null ? 0 : arg.Length;
-                    let jsArg = [];
-                    for (let i = 0; i < argLength; i++) {
-                        const a = arg.GetValue(i);
+                let jsArg = [];
+                for (let i = 0; i < length; i++) {
+                    const a = args.GetValue(i);
                         jsArg.push(a);
-                    }
-                    if (self == null) {
-                        return fun(...jsArg);
-                    } else {
-                        return fun(self, ...jsArg);
-                    }
-                } else {
-                    return fun();
                 }
+                return fun(...jsArg);
             } else {
                 return fun();
             }
         }
     }
 
-    CSHotfix.jsHasPatch = hasPatch;
-    CSHotfix.jsCallPatch = callPatch;
-
     hotfix.patch = function (type, methodName, patchFun) {
         hotfix.patchId(type, methodName, patchKey, patchFun);
     }
 
+    // 第三个参数为方法id, 会生成在hotfix_map.js.txt中
     hotfix.patchId = function (type, methodName, methodId, patchFun) {
         if (!hotfix.isInject) {
             console.error("not inject");
@@ -86,6 +72,18 @@ var global = global || (function () { return this; }());
         }
         patchList[t][methodName][methodId] = patchFun;
     }
+
+    hotfix.init = function () {
+        if (!hotfix.isInject) {
+            return;
+        }
+        try { hotfix.map = require('hotfix_map'); } catch { console.warn("not found hotfix_map"); }
+    }
+
+    hotfix.init();
+
+    CSHotfix.jsHasPatch = hasPatch;
+    CSHotfix.jsCallPatch = callPatch;
 
     global.puerts.hotfix = hotfix;
 }(global));

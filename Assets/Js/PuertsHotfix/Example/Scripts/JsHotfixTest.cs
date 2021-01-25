@@ -10,53 +10,50 @@ namespace PuertsTest
         {
             jsEnv = new JsEnv();
             Hotfix.Init(jsEnv);
-            jsEnv.Eval(@"const CS = require('csharp');
-
-                         // 重载方法
-                         puerts.hotfix.patchId(CS.PuertsTest.JsHotfixTest, 'HotfixTest', 0, (self)=>{
-                            console.log('Js的方法 :: void HotfixTest(); ---- self : ' + self + ' ----');
-                         });
-                         puerts.hotfix.patchId(CS.PuertsTest.JsHotfixTest, 'HotfixTest', 1, (self, hotfixTest)=>{
-                            console.log('Js的方法 :: void HotfixTest(int hotfixTest); - ' + hotfixTest);
-                         });
-
-                         // 普通方法
-                         puerts.hotfix.patch(CS.PuertsTest.JsHotfixTest, 'HotfixTest1', (self)=>{
-                            let result = 1;
-                            console.log('Js的方法 :: double HotfixTest1(); - ' + result);
-                            return result;
-                         });
-                       ");
+            jsEnv.Eval(@"require('test_hotfix');");
         }
         private void Start()
         {
             HotfixTest();
-            HotfixTest(2);
-            HotfixTest1();
+            HotfixTest(2, TestHotfixEnum.Test, this.gameObject);
+            Debug.Log("HotfixTest1 : " + HotfixTest1());
+            Debug.Log("HotfixTest2 : " + HotfixTest2());
             NoHotfixTest();
+            StaticMethod();
         }
         private void HotfixTest()
         {
-            Debug.Log("C#的方法 :: void HotfixTest();");
+            Debug.Log("C# :: HotfixTest();");
         }
-        private void HotfixTest(int hotfixTest)
+        private void HotfixTest(int hotfixTest, TestHotfixEnum testEnum, GameObject go)
         {
-            Debug.Log("C#的方法 :: void HotfixTest(int hotfixTest); - " + hotfixTest);
+            Debug.Log("C# :: HotfixTest(); :: " + hotfixTest + " " + testEnum + " " + go.name);
         }
         public double HotfixTest1()
         {
-            var result = 0;
-            Debug.Log("C#的方法 :: double HotfixTest1(); - " + result);
-            return result;
+            return 1;
+        }
+        public GameObject HotfixTest2()
+        {
+            return this.gameObject;
         }
         private void NoHotfixTest()
         {
-            Debug.Log("C#的方法 :: NoHotfixTest");
+            Debug.Log("C# :: NoHotfixTest");
+        }
+        public static void StaticMethod()
+        {
+            Debug.Log("C# :: StaticMethod");
         }
 
         private void OnDestroy()
         {
             jsEnv.Dispose();
+        }
+
+        public enum TestHotfixEnum
+        {
+            Test = 0,
         }
     }
 }

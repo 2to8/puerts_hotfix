@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.Callbacks;
 
@@ -63,7 +64,7 @@ namespace Puerts
                     .ToList();
                 foreach (var cfgItem in typeList)
                 {
-                    if (cfgItem.Key.IsInterface) continue; // 跳过接口
+                    if (cfgItem.Key.IsInterface || cfgItem.Key.IsEnum) continue; // 跳过接口 枚举
                     var config = getHotfixConfig == null ? GetDefaultHotfixConfig() : (HotfixConfig)getHotfixConfig.Invoke(null, new object[] { cfgItem.Key });
 
                     foreach (var method in cfgItem.Key.GetMethods(GetHotfixMethodType()))
@@ -78,7 +79,7 @@ namespace Puerts
             if (injectList.Count >= 0)
             {
                 var assembly_path = string.Format("./Library/{0}/{1}.dll", GetScriptAssembliesFolder(), assembly);
-                HotfixInject.StartInject(assembly_path, injectList, codeDir);
+                HotfixInject.StartInject(assembly_path, injectList, GetHotfixAssemblyPaths(), codeDir);
             }
             else
             {
@@ -255,6 +256,13 @@ namespace Puerts
             {
                 return type.FullName.Replace('+', '/');
             }
+        }
+        #endregion
+
+        #region GetHotfixPaths
+        public static List<string> GetHotfixAssemblyPaths()
+        {
+            return null;
         }
         #endregion
     }

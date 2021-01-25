@@ -9,19 +9,28 @@ namespace Puerts
 {
     public static class HotfixInject
     {
-        private static Dictionary<string, Dictionary<string, List<string>>> allInjectMethods;
-
         #region StartInject
         /// <summary> 开始注入 </summary>
-        public static void StartInject(string assmeblyPath, List<string> injectList, string codeDir)
+        public static void StartInject(string assmeblyPath, IEnumerable<string> injectList, IEnumerable<string> searchDirectorys, string codeDir)
         {
-            allInjectMethods = new Dictionary<string, Dictionary<string, List<string>>>();
             assmeblyPath = Path.GetFullPath(assmeblyPath);
             AssemblyDefinition assembly = null;
             try
             {
                 assembly = AssemblyDefinition.ReadAssembly(assmeblyPath,
                     new ReaderParameters { ReadSymbols = true, ReadWrite = true, });
+
+                InitGenerateHotfixCode();
+
+                var resolver = assembly.MainModule.AssemblyResolver as BaseAssemblyResolver;
+                resolver.AddSearchDirectory("./Library/ScriptAssemblies/");
+                if (searchDirectorys != null)
+                {
+                    foreach (var dir in searchDirectorys.Distinct())
+                    {
+                        resolver.AddSearchDirectory(dir);
+                    }
+                }
 
                 CreateTempFile(assmeblyPath);
 
@@ -67,7 +76,7 @@ namespace Puerts
             UnityEditor.AssetDatabase.Refresh();
         }
         /// <summary> 注入Type </summary>
-        private static string InjectType(ModuleDefinition module, TypeDefinition type, List<string> injectList)
+        private static string InjectType(ModuleDefinition module, TypeDefinition type, IEnumerable<string> injectList)
         {
             var methodStrs = "";
             foreach (var nestedTypes in type.NestedTypes)
@@ -90,7 +99,7 @@ namespace Puerts
         #region Tools
 
         #region IsHotfix
-        private static bool IsHotfix(MethodDefinition method, List<string> injectList)
+        private static bool IsHotfix(MethodDefinition method, IEnumerable<string> injectList)
         {
             var methodString = GetMethodString(method);
             foreach (var item in injectList)
@@ -180,6 +189,11 @@ namespace Puerts
         #endregion
 
         #region Generate Code
+        private static Dictionary<string, Dictionary<string, List<string>>> allInjectMethods;
+        private static void InitGenerateHotfixCode()
+        {
+            allInjectMethods = new Dictionary<string, Dictionary<string, List<string>>>();
+        }
         private static void GenerateHotfixCode(string codeDir)
         {
             var path = Path.Combine(codeDir, "hotfix_map.js.txt");
@@ -263,6 +277,7 @@ namespace Puerts
         private static void InjectMethod(ModuleDefinition module, MethodDefinition method)
         {
             var type = method.DeclaringType;
+            var objectType = module.TypeSystem.Object;
 
             var hotfixType = module.Types.Single(t => t.FullName == "Puerts.Hotfix");
             var hasPatchRef = module.ImportReference(hotfixType.Methods.Single(m=>m.Name == "HasPatch"));
@@ -298,7 +313,7 @@ namespace Puerts
             paramsCount = method.IsStatic ? paramsCount : paramsCount + 1;
             // 创建 args参数 object[] 集合
             current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, paramsCount));
-            current = InsertAfter(worker, current, worker.Create(OpCodes.Newarr, module.ImportReference(typeof(object))));
+            current = InsertAfter(worker, current, worker.Create(OpCodes.Newarr, objectType));
 
             int index = 0;
             // 如果不是static方法，则把this传进参数
@@ -313,27 +328,20 @@ namespace Puerts
 
             for (; index < paramsCount; index++)
             {
-                var parIndex = method.IsStatic ? index : index - 1;
-                // var argIndex = method.IsStatic ? index : index + 1;
+                var methodParIndex = method.IsStatic ? index : index - 1;
 
                 // 压入参数
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Dup));
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, index));
-                var paramType = method.Parameters[parIndex].ParameterType;
-                // 获取参数类型定义, 用来区分是否枚举类 [若你所使用的类型不在本assembly, 则此处需要遍历其他assembly以取得TypeDefinition]
-                var paramTypeDef = module.GetType(paramType.FullName);
+                var paramType = method.Parameters[methodParIndex].ParameterType;
 
-
-                // 这里很重要, 需要判断出 值类型数据(不包括枚举) 是不需要拆箱的
-                if (paramType.IsValueType && (paramTypeDef == null || !paramTypeDef.IsEnum))
+                current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, index));
+                // 值类型
+                if (paramType.IsValueType)
                 {
-                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, parIndex));
-                }
-                else
-                {
-                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, parIndex));
                     current = InsertAfter(worker, current, worker.Create(OpCodes.Box, paramType));
                 }
+
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Stelem_Ref));
             }
             current = InsertAfter(worker, current, worker.Create(OpCodes.Call, callPatchRef));
@@ -366,7 +374,7 @@ namespace Puerts
             worker.InsertAfter(target, instruction);
             return instruction;
         }
-        private static void ComputeOffsets(Mono.Cecil.Cil.MethodBody body)
+        private static void ComputeOffsets(MethodBody body)
         {
             var offset = 0;
             foreach (var instruction in body.Instructions)
@@ -378,113 +386,8 @@ namespace Puerts
         #region generic
         private static bool IsGeneric(MethodDefinition method)
         {
-            return method.HasGenericParameters || genericInOut(method);
+            return method.HasGenericParameters;
         }
-        private static bool genericInOut(MethodDefinition method)
-        {
-            if (hasGenericParameter(method.ReturnType) || isNoPublic(method.ReturnType))
-            {
-                return true;
-            }
-            var parameters = method.Parameters;
-
-            if (!method.IsStatic
-                && (hasGenericParameter(method.DeclaringType) || (method.DeclaringType.IsValueType && isNoPublic(method.DeclaringType))))
-            {
-                return true;
-            }
-            for (int i = 0; i < parameters.Count; i++)
-            {
-                if (hasGenericParameter(parameters[i].ParameterType) ||
-                    ((parameters[i].ParameterType.IsValueType ||
-                    parameters[i].ParameterType.IsByReference ||
-                    parameters[i].CustomAttributes.Any
-                    (ca => ca.AttributeType.FullName == "System.ParamArrayAttribute")) && isNoPublic(parameters[i].ParameterType)))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-        private static bool hasGenericParameter(TypeReference type)
-        {
-            if (type.HasGenericParameters)
-            {
-                return true;
-            }
-            if (type.IsByReference)
-            {
-                return hasGenericParameter(((ByReferenceType)type).ElementType);
-            }
-            if (type.IsArray)
-            {
-                return hasGenericParameter(((ArrayType)type).ElementType);
-            }
-            if (type.IsGenericInstance)
-            {
-                foreach (var typeArg in ((GenericInstanceType)type).GenericArguments)
-                {
-                    if (hasGenericParameter(typeArg))
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-            return type.IsGenericParameter;
-        }
-        static bool isNoPublic(TypeReference type)
-        {
-            if (type.IsByReference)
-            {
-                return isNoPublic(((ByReferenceType)type).ElementType);
-            }
-            if (type.IsArray)
-            {
-                return isNoPublic(((ArrayType)type).ElementType);
-            }
-            else
-            {
-                if (type.IsGenericInstance)
-                {
-                    foreach (var typeArg in ((GenericInstanceType)type).GenericArguments)
-                    {
-                        if (isNoPublic(typeArg))
-                        {
-                            return true;
-                        }
-                    }
-                }
-
-                var resolveType = type.Resolve();
-                if ((!type.IsNested && !resolveType.IsPublic) || (type.IsNested && !resolveType.IsNestedPublic))
-                {
-                    return true;
-                }
-                if (type.IsNested)
-                {
-                    var parent = type.DeclaringType;
-                    while (parent != null)
-                    {
-                        var resolveParent = parent.Resolve();
-                        if ((!parent.IsNested && !resolveParent.IsPublic) || (parent.IsNested && !resolveParent.IsNestedPublic))
-                        {
-                            return true;
-                        }
-                        if (parent.IsNested)
-                        {
-                            parent = parent.DeclaringType;
-                        }
-                        else
-                        {
-                            break;
-                        }
-                    }
-                }
-                return false;
-            }
-
-        } 
         #endregion
         #endregion
     }
