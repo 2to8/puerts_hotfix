@@ -113,7 +113,8 @@
     }
 
 ##### 示例:
-    Assets/PuertsHotfix/Example/Main.Unity
+[Assets/PuertsHotfix/Example/Main.Unity](./Assets/Js/PuertsHotfix/Example/)
+<br /><br />
 <img src="./document/CSharp.png" alt="1">
 <img src="./document/Js.png" alt="1">
 
