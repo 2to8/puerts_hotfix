@@ -292,33 +292,46 @@ namespace Puerts
             current = InsertAfter(worker, current, worker.Create(OpCodes.Ldstr, className));
             current = InsertAfter(worker, current, worker.Create(OpCodes.Ldstr, methodName));
             current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, methodId));
-            // 如果不是static方法，则把this传进参数
-            if (method.IsStatic)
-                current = InsertAfter(worker, current, worker.Create(OpCodes.Ldnull));
-            else
-                current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg_0));
+
 
             var paramsCount = method.Parameters.Count;
+            paramsCount = method.IsStatic ? paramsCount : paramsCount + 1;
             // 创建 args参数 object[] 集合
             current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, paramsCount));
             current = InsertAfter(worker, current, worker.Create(OpCodes.Newarr, module.ImportReference(typeof(object))));
-            for (int index = 0; index < paramsCount; index++)
+
+            int index = 0;
+            // 如果不是static方法，则把this传进参数
+            if (!method.IsStatic)
             {
-                var argIndex = method.IsStatic ? index : index + 1;
+                current = InsertAfter(worker, current, worker.Create(OpCodes.Dup));
+                current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, index));
+                current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg_0));
+                current = InsertAfter(worker, current, worker.Create(OpCodes.Stelem_Ref));
+                index++;
+            }
+
+            for (; index < paramsCount; index++)
+            {
+                var parIndex = method.IsStatic ? index : index - 1;
+                // var argIndex = method.IsStatic ? index : index + 1;
+
                 // 压入参数
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Dup));
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Ldc_I4, index));
-                var paramType = method.Parameters[index].ParameterType;
+                var paramType = method.Parameters[parIndex].ParameterType;
                 // 获取参数类型定义, 用来区分是否枚举类 [若你所使用的类型不在本assembly, 则此处需要遍历其他assembly以取得TypeDefinition]
                 var paramTypeDef = module.GetType(paramType.FullName);
+
+
                 // 这里很重要, 需要判断出 值类型数据(不包括枚举) 是不需要拆箱的
                 if (paramType.IsValueType && (paramTypeDef == null || !paramTypeDef.IsEnum))
                 {
-                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, argIndex));
+                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, parIndex));
                 }
                 else
                 {
-                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, argIndex));
+                    current = InsertAfter(worker, current, worker.Create(OpCodes.Ldarg, parIndex));
                     current = InsertAfter(worker, current, worker.Create(OpCodes.Box, paramType));
                 }
                 current = InsertAfter(worker, current, worker.Create(OpCodes.Stelem_Ref));
@@ -340,6 +353,7 @@ namespace Puerts
             // 重新计算语句位置偏移值
             ComputeOffsets(method.Body);
         }
+
         /// <summary> 语句前插入Instruction, 并返回当前语句 </summary>
         private static Instruction InsertBefore(ILProcessor worker, Instruction target, Instruction instruction)
         {
